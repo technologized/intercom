@@ -1,77 +1,148 @@
-# Intercom
+# TracPoll — Decentralized P2P Polling on Intercom
 
-This repository is a reference implementation of the **Intercom** stack on Trac Network for an **internet of agents**.
+**TracPoll** is a peer-to-peer polling and voting application built on the [Intercom](https://github.com/Trac-Systems/intercom) stack. Peers create polls over Intercom sidechannels, others vote anonymously, and results are durably stored in the replicated contract state (Autobase/Hyperbee). No server, no admin, no censorship.
 
-At its core, Intercom is a **peer-to-peer (P2P) network**: peers discover each other and communicate directly (with optional relaying) over the Trac/Holepunch stack (Hyperswarm/HyperDHT + Protomux). There is no central server required for sidechannel messaging.
+> **Trac Wallet Address:** `trac19gux30h0mk7ucy6s4s0aep998nleutymw70z6cgxxj8gyr4a0qlsu40ca3`
 
-Features:
-- **Sidechannels**: fast, ephemeral P2P messaging (with optional policy: welcome, owner-only write, invites, PoW, relaying).
-- **SC-Bridge**: authenticated local WebSocket control surface for agents/tools (no TTY required).
-- **Contract + protocol**: deterministic replicated state and optional chat (subnet plane).
-- **MSB client**: optional value-settled transactions via the validator network.
+---
 
-Additional references: https://www.moltbook.com/post/9ddd5a47-4e8d-4f01-9908-774669a11c21 and moltbook m/intercom
+## What It Does
 
-For full, agent‑oriented instructions and operational guidance, **start with `SKILL.md`**.  
-It includes setup steps, required runtime, first‑run decisions, and operational notes.
+- **Create a poll** — any peer broadcasts a question with up to 4 options over an Intercom sidechannel.
+- **Vote** — peers cast a single vote per poll; votes are sent over the sidechannel and written into replicated contract state.
+- **Live tally** — results update in real time as votes propagate across the P2P network.
+- **Audit trail** — all polls and vote counts are stored in the deterministic Autobase/Hyperbee contract, readable by any peer.
 
-## What this repo is for
-- A working, pinned example to bootstrap agents and peers onto Trac Network.
-- A template that can be trimmed down for sidechannel‑only usage or extended for full contract‑based apps.
+---
 
-## How to use
-Use the **Pear runtime only** (never native node).  
-Follow the steps in `SKILL.md` to install dependencies, run the admin peer, and join peers correctly.
+## Why It's Unique
 
-## Architecture (ASCII map)
-Intercom is a single long-running Pear process that participates in three distinct networking "planes":
-- **Subnet plane**: deterministic state replication (Autobase/Hyperbee over Hyperswarm/Protomux).
-- **Sidechannel plane**: fast ephemeral messaging (Hyperswarm/Protomux) with optional policy gates (welcome, owner-only write, invites).
-- **MSB plane**: optional value-settled transactions (Peer -> MSB client -> validator network).
+| Feature | TracPoll |
+|---|---|
+| No central server | ✅ Pure P2P via Hyperswarm |
+| Replicated state | ✅ Autobase + Hyperbee contract |
+| Real-time results | ✅ Sidechannel events |
+| One vote per peer per poll | ✅ Enforced in contract |
+| Agent-operable via SC-Bridge | ✅ JSON WebSocket API |
 
-```text
-                          Pear runtime (mandatory)
-                pear run . --peer-store-name <peer> --msb-store-name <msb>
-                                        |
-                                        v
-  +-------------------------------------------------------------------------+
-  |                            Intercom peer process                         |
-  |                                                                         |
-  |  Local state:                                                          |
-  |  - stores/<peer-store-name>/...   (peer identity, subnet state, etc)    |
-  |  - stores/<msb-store-name>/...    (MSB wallet/client state)             |
-  |                                                                         |
-  |  Networking planes:                                                     |
-  |                                                                         |
-  |  [1] Subnet plane (replication)                                         |
-  |      --subnet-channel <name>                                            |
-  |      --subnet-bootstrap <admin-writer-key-hex>  (joiners only)          |
-  |                                                                         |
-  |  [2] Sidechannel plane (ephemeral messaging)                             |
-  |      entry: 0000intercom   (name-only, open to all)                     |
-  |      extras: --sidechannels chan1,chan2                                 |
-  |      policy (per channel): welcome / owner-only write / invites         |
-  |      relay: optional peers forward plaintext payloads to others          |
-  |                                                                         |
-  |  [3] MSB plane (transactions / settlement)                               |
-  |      Peer -> MsbClient -> MSB validator network                          |
-  |                                                                         |
-  |  Agent control surface (preferred):                                     |
-  |  SC-Bridge (WebSocket, auth required)                                   |
-  |    JSON: auth, send, join, open, stats, info, ...                       |
-  +------------------------------+------------------------------+-----------+
-                                 |                              |
-                                 | SC-Bridge (ws://host:port)   | P2P (Hyperswarm)
-                                 v                              v
-                       +-----------------+            +-----------------------+
-                       | Agent / tooling |            | Other peers (P2P)     |
-                       | (no TTY needed) |<---------->| subnet + sidechannels |
-                       +-----------------+            +-----------------------+
+---
 
-  Optional for local testing:
-  - --dht-bootstrap "<host:port,host:port>" overrides the peer's HyperDHT bootstraps
-    (all peers that should discover each other must use the same list).
+## How to Run
+
+### Requirements
+
+- [Pear runtime](https://docs.pears.com/) (mandatory — do NOT use native Node.js)
+- Node.js 20+
+
+### Install
+
+```bash
+git clone https://github.com/technologized/intercom
+cd intercom
+npm install
+```
+
+### Start the admin peer (first peer / poll creator)
+
+```bash
+pear run . --peer-store-name admin --msb-store-name admin-msb --sidechannels polls
+```
+
+Copy the printed **writer key** — joiners need it.
+
+### Join as a voter
+
+```bash
+pear run . --peer-store-name voter1 --msb-store-name voter1-msb \
+  --subnet-bootstrap <admin-writer-key> --sidechannels polls
 ```
 
 ---
-If you plan to build your own app, study the existing contract/protocol and remove example logic as needed (see `SKILL.md`).
+
+## SC-Bridge Commands (Agent API)
+
+Connect to `ws://localhost:<port>` and authenticate, then use these JSON commands:
+
+### Create a poll
+```json
+{
+  "cmd": "send",
+  "channel": "polls",
+  "data": {
+    "type": "poll:create",
+    "id": "poll-001",
+    "question": "What is the best Layer 1 chain?",
+    "options": ["Bitcoin", "Ethereum", "Solana", "Trac"]
+  }
+}
+```
+
+### Cast a vote
+```json
+{
+  "cmd": "send",
+  "channel": "polls",
+  "data": {
+    "type": "poll:vote",
+    "poll_id": "poll-001",
+    "option": "Trac"
+  }
+}
+```
+
+### Get results
+```json
+{
+  "cmd": "contract:query",
+  "key": "poll:poll-001"
+}
+```
+
+---
+
+## Contract Schema
+
+Polls and votes are stored in the Hyperbee contract under these key patterns:
+
+| Key | Value |
+|---|---|
+| `poll:<id>` | `{ question, options[], created_at, creator_key }` |
+| `vote:<poll_id>:<voter_key>` | `{ option, timestamp }` |
+| `tally:<poll_id>` | `{ <option>: <count>, ... }` |
+
+---
+
+## App Flow (Proof it Works)
+
+```
+Peer A (admin)              Peer B (voter)
+     |                           |
+     |--[sidechannel: poll:create]-->|
+     |                           |
+     |<--[sidechannel: poll:vote]----|
+     |                           |
+     |--[contract write: tally]-->|  (replicated to all)
+     |                           |
+     |<--[contract read: results]-|
+```
+
+---
+
+## Screenshots / Demo
+
+See [`/screenshots`](./screenshots/) folder for:
+- Poll creation output in terminal
+- Live vote tally updating across two peers
+- Contract state dump showing votes stored in Hyperbee
+
+---
+
+## SKILL.md
+
+See [SKILL.md](./SKILL.md) for full agent-oriented operational instructions.
+
+---
+
+## License
+
+MIT
