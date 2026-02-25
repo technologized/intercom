@@ -1,26 +1,36 @@
 {
-  "name": "contract-test-latest",
-  "version": "0.0.1",
-  "type": "module",
+  "name": "tracpoll",
+  "version": "1.0.0",
+  "description": "Decentralized P2P polling and voting app built on the Intercom stack (Trac Network)",
   "main": "index.js",
-  "pear": {
-    "name": "contract-test-latest",
-    "type": "terminal"
+  "type": "module",
+  "scripts": {
+    "start": "pear run .",
+    "admin": "pear run . --peer-store-name admin --msb-store-name admin-msb --sidechannels polls",
+    "voter": "pear run . --peer-store-name voter1 --msb-store-name voter1-msb --sidechannels polls"
   },
+  "keywords": [
+    "trac",
+    "intercom",
+    "p2p",
+    "polling",
+    "voting",
+    "hyperswarm",
+    "pear"
+  ],
+  "license": "MIT",
   "dependencies": {
-    "b4a": "^1.6.7",
-    "bare-ws": "2.0.3",
-    "compact-encoding": "^2.18.0",
-    "crypto": "npm:bare-node-crypto",
-    "fs": "npm:bare-node-fs",
-    "path": "npm:bare-node-path",
-    "protomux": "^3.10.1",
-    "trac-msb": "git+https://github.com/Trac-Systems/main_settlement_bus.git#5088921",
-    "trac-peer": "git+https://github.com/Trac-Systems/trac-peer.git#d108f52",
-    "trac-wallet": "1.0.1",
-    "util": "npm:bare-node-util"
+    "b4a": "^1.6.4",
+    "hyperswarm": "^4.7.15",
+    "hyperdht": "^6.18.0",
+    "autobase": "^6.0.0",
+    "hyperbee": "^2.20.5",
+    "protomux": "^3.14.0",
+    "compact-encoding": "^2.12.0"
   },
-  "overrides": {
-    "trac-wallet": "1.0.1"
+  "devDependencies": {},
+  "pear": {
+    "name": "tracpoll",
+    "type": "terminal"
   }
 }
